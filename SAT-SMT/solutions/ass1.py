@@ -1,13 +1,15 @@
 from operator import concat
 from random_word import RandomWords
 import z3
+
 r = RandomWords()  # Random words for testing
 
-N_OPTIONS = 50
-USE_RANDOM = False  # Choose words randomly, if false default words will be chosen
+N_OPTIONS = 20  # Number of options in case USE_RANDOM is set to TRUE
+USE_RANDOM = False  # Choose words randomly, if false DEFAULT_WORDS will be chosen  --> Useful for testing
 PRINT_WORDS = True  # Print words with mnemonics if possible, if false only sat model will be displayed
 
-DEFAULT_WORDS = ['Undo', 'Redo', 'Cut', 'Copy', 'Paste', 'Delete', 'Select All']  # default words to check
+# Disclaimer: blank spaces are not cleaned in word cleaning, will althought could be easily done it isn't so 'Select All' is 'SelectAll' here
+DEFAULT_WORDS = ['Undo', 'Redo', 'Cut', 'Copy', 'Paste', 'Delete', 'SelectAll']  # default words to check
 
 # Select words either randomly or from defined set
 options = [r.get_random_word() for _ in range(0, N_OPTIONS)] if USE_RANDOM else DEFAULT_WORDS
@@ -21,7 +23,7 @@ END_ESCP = '\033[0m'  # restore default print (stop underscore when used)
 solver = z3.Solver()
 
 """
-Create the propositions by 'p_{word_index}_{correspondant_char} associated to each letter of
+Create the propositions by 'p_{word_index}_{char} associated to each letter of
 each word. Nested arrays: array of arrays (inner level contains p's of word letters)
 """
 p = [[z3.Bool(f'p_{i+1}_{chars[i][j]}') for j in range(len(chars[i]))] for i in range(len(chars))]
@@ -101,7 +103,7 @@ if solver.check() == z3.sat:
             __rtrv_chr = lambda __p: __p.__str__()[-1]  # from p: p_{word_idx}_{char} return {char}
             __rtrv_idx = lambda __p: int(__p.__str__()[2:-2])  # from p: p_{word_idx}_{char} return {word_idx}
             if z3.is_true(__model[__m]):  # Check if p[word_idx]['char'] is True so it's a mnemonic
-                __und_chars[__rtrv_idx(__m)] = __rtrv_chr(__m)  # Insert char to be underscored
+                __und_chars[__rtrv_idx(__m)] = __rtrv_chr(__m)  # Flag char to be underscored
         __mnemonics = []
         for k, v in __und_chars.items():
             __word = ''
