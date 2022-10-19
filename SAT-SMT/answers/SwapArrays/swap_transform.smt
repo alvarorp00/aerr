@@ -7,26 +7,33 @@
 (declare-fun x (Int) Int)
 (declare-fun x1 (Int) Int)
 (declare-fun xp (Int) Int)
-(declare-const i Int)
-(declare-const j Int)
+(declare-const n Int)
+(declare-const m Int)
 (declare-const e Int)
 (declare-const k Int)
 
 
-(assert (= e (x i)))
-(assert (= (x1 i) (x j)))
-(assert (=> (not (= j i)) (= (x1 j) (x j))))
-(assert (=> (not (= k i)) (= (x1 k) (x k))))
-(assert (= (xp j) e))
-(assert (=> (not (= i j)) (= (xp i) (x1 i))))
-(assert (=> (not (= k j)) (= (xp k) (x1 k))))
+(assert (= e (x n)))
+(assert (= (x1 n) (x m)))
+(assert (=> (not (= m n)) (= (x1 m) (x m))))
+(assert (=> (not (= k n)) (= (x1 k) (x k))))
+(assert (= (xp m) e))
+(assert (=> (not (= n m)) (= (xp n) (x1 n))))
+(assert (=> (not (= k m)) (= (xp k) (x1 k))))
 
 
-(assert 
-      (or
-          (not (= (xp i) (x j)))
-          (not (= (xp j) (x i)))
-          (not (=> (and (not (= k i)) (not (= k j))) (= (xp k) (x k))))
-      ))
+ (assert 
+       (or
+           (not (= (xp n) (x m)))
+           (not (= (xp m) (x n)))
+           (not (=> (and (not (= k n)) (not (= k m))) (= (xp k) (x k))))
+       ))
+
+; (assert 
+;       (or
+;           (not (= (xp n) (x m)))
+;           (not (= (xp m) (x n)))
+;           (and (not (= k n)) (not (= k m)) (not (= (xp k) (x k))))
+;       ))
 
 (check-sat)
