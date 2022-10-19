@@ -4,12 +4,13 @@ import Data.Char()
 import Data.Int()
 -- import Data.Maybe
 import Data.List()
+import qualified Data.Set as Set
 -- import Data.Function
 
 -- 1. Implement abstract data types
 
 -- Expressions
-data Exp = Skip
+data Exp = SkipExp
     | Stmt Exp Exp
     | AStmt AExp
     | BStmt BExp
@@ -27,7 +28,6 @@ data AExp = Const Int
     deriving (Show)
 
 -- Boolean Operators & expressions
--- data BExp = BOp BBinOp AExp AExp deriving (Show)
 data BExp = BLEq AExp AExp
     | BEq AExp AExp
     | BAnd BExp BExp
@@ -40,15 +40,18 @@ data BExp = BLEq AExp AExp
 -- 2. Implement a function that given an arithmetic/boolean exp.
 --    returns the set of variables ocurring in it.
 
+-- rmdups --> remove duplicates from a list.
+--            Unused since Set.fromList is being used.
+
 rmdups :: Eq a => [a] -> [a]
 rmdups []     = []
 rmdups (x:xs) = x : filter (/= x) (rmdups xs)
 
-vars :: Exp -> [Char]
-vars e = rmdups $ vars' e
+vars :: Exp -> Set.Set Char
+vars e = Set.fromList $ vars' e
     where vars' :: Exp -> [Char]
-          vars' (Skip) = []
-          vars' (Stmt s1 s2) = (vars' s1) ++ (vars' s2)
+          vars' (SkipExp) = []
+          vars' (Stmt s1 s2) = (vars' s1) ++ "; " ++ (vars' s2)
           vars' (AStmt a) = vars'' a
               where vars'' :: AExp -> [Char]
                     vars'' (Const _) = []
@@ -61,13 +64,23 @@ vars e = rmdups $ vars' e
                     vars'' (BAnd b1 b2) = (vars'' b1) ++ (vars'' b2)
 
 ---------------------
+------- CFG's -------
+---------------------
+
+data CFG = CFG CFGBlockType Int -- Int references the label of the block
+
+data CFGBlockType = SkipBlock
+    | AssignBlock AExp AExp  -- need to check later that left part of assignment is Var type
+    | CondBlock BExp Exp
+
+---------------------
 ----- STRINGIFY -----
 ---------------------
 
 strfy :: Exp -> String
 strfy e = "(" ++ strfy' e ++ ")"
     where strfy' :: Exp -> String 
-          strfy' (Skip) = ""
+          strfy' (SkipExp) = ""
           strfy' (Stmt s1 s2) = (strfy' s1) ++ (strfy' s2)
           strfy' (AStmt a) = "" ++ strfy'' a ++ ""
             where strfy'' :: AExp -> String
@@ -111,9 +124,9 @@ exp3 = BStmt bexp1
 
 mainLib :: IO()
 mainLib = do
-    -- print $ vars (aexp1)
-    -- print exp3
     print $ vars exp3
+    -- print exp3
+    -- print $ vars exp3
 
 instance Show Exp where
     show = strfy
