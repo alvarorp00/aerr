@@ -154,10 +154,8 @@ f input = f' emptyVals emptyVals
         tblocks = uniqueBlocks input
         f' :: LVMap -> LVMap -> (LVMap, LVMap)
         f' lvouts lvins = 
-            if fixed_point then
-                (lvouts', lvins')
-            else
-                f' lvouts' lvins'
+            | fixed_point = (lvouts', lvins')
+            | otherwise   = f' lvouts' lvins'
             where
                 fixed_point = (lvouts' == lvouts) && (lvins' == lvins)
                 lvouts' = Map.mapWithKey (inverseTransfer tblocks lvins) lvouts
