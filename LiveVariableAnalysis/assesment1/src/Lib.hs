@@ -133,12 +133,12 @@ getChildrenLabels (Block _ _ c) = c
 getChildren :: CFG -> [CFG]
 getChildren = (getCFGS . getChildrenLabels)
 
-uniqueBlocks :: CFG -> Map.Map Int CFG
-uniqueBlocks cblock =
-    Map.union (Map.insert (getLabel cblock) cblock Map.empty) ((uniqueBlocks' . getChildren) cblock)
-        where uniqueBlocks' :: [CFG] -> Map.Map Int CFG
-              uniqueBlocks' [] = Map.empty
-              uniqueBlocks' (s:ss) = Map.union (uniqueBlocks s) (uniqueBlocks' ss)
+-- uniqueBlocks :: CFG -> Map.Map Int CFG
+-- uniqueBlocks cblock =
+--     Map.union (Map.insert (getLabel cblock) cblock Map.empty) ((uniqueBlocks' . getChildren) cblock)
+--         where uniqueBlocks' :: [CFG] -> Map.Map Int CFG
+--               uniqueBlocks' [] = Map.empty
+--               uniqueBlocks' (s:ss) = Map.union (uniqueBlocks s) (uniqueBlocks' ss)
 
 type LVMap = Map.Map Int VarSet
 
@@ -155,12 +155,12 @@ bottom (x:xs) = Map.union (bottom xs) (Map.insert x Set.empty Map.empty)
 -- Returns:
 --      ~ (LVMap, LVMap) : (LVOut_n, LVIn_n) -> Tuple containing LVOut & 
 --                                              LVIn of each block
-f :: CFG -> (LVMap, LVMap)
-f input = f' emptyVals emptyVals
+f :: (LVMap, LVMap)
+f = f' emptyVals emptyVals
     where
         emptyVals = bottom labels
         labels = map (\x -> getLabel x) (Map.elems tblocks)
-        tblocks = uniqueBlocks input
+        tblocks = buildCFGs
         f' :: LVMap -> LVMap -> (LVMap, LVMap)
         f' lvouts lvins
             | fixed_point = (lvouts', lvins')
@@ -214,57 +214,93 @@ strfy e = "(" ++ strfy' e ++ ")"
 ---------------------
 
 ---------------------
+------- TEST --------
+---- EXPRESSIONS ----
+---------------------
+
+-- aexp1 :: AExp
+-- aexp1 = AOp AMul (AOp AAdd (Var 'x') (Var 'y')) (Var 'z')
+
+-- aexp2 :: AExp
+-- aexp2 = AOp ASub (AOp AAdd (Var 'x') (Var 'y')) (Var 'y')
+
+-- bexp1 :: BExp
+-- bexp1 = BEq aexp1 aexp2
+
+-- exp1 :: Exp
+-- exp1 = AStmt aexp1
+
+-- exp2 :: Exp
+-- exp2 = AStmt aexp2
+
+-- exp3 :: Exp
+-- exp3 = BStmt bexp1
+
+-- test1 :: CFG
+-- test1 = Block (AssignBlock ((Var 'a')) (aexp1)) 1 []
+
+-- test2 :: CFG
+-- test2 = Block (CondBlock bexp1) 2 []
+
+---------------------
+----- HARDCODED -----
+------- BLOCKS ------
+---------------------
+
+-- EXPRESIONS --
+
+exp1 :: CFGBlock
+exp1 = AssignBlock (Var 'x') (Const 1) -- x := 1
+
+exp2 :: CFGBlock
+exp2 = CondBlock (BLEq (Const 0) (Var 'y'))  -- y > 0
+
+exp3 :: CFGBlock
+exp3 = AssignBlock (Var 'x') (AOp ASub (Var 'x') (Const 1)) -- x := x - 1
+
+exp4 :: CFGBlock
+exp4 = AssignBlock (Var 'x') (Const 2)
+
+-- NODES --
+
+node1 :: CFG
+node1 = Block {block=exp1, label=1, succs=[2]}
+
+node2 :: CFG
+node2 = Block {block=exp2, label=2, succs=[3,4]}
+
+node3 :: CFG
+node3 = Block {block=exp3, label=3, succs=[2]}
+
+node4 :: CFG
+node4 = Block {block=exp4, label=4, succs=[]}
+
+nodes :: [CFG]
+nodes = [node1, node2, node3, node4]
+
+---------------------
 ---- BUILD CFGs -----
 ---------------------
 
 buildCFGs :: Map.Map Int CFG
-buildCFGs = Map.empty -- TODO
+buildCFGs = Map.fromList $ map (\x -> (getLabel x, x)) nodes
 
 ---------------------
----- EXPRESSIONS ----
+-------- MAIN -------
 ---------------------
 
-aexp1 :: AExp
-aexp1 = AOp AMul (AOp AAdd (Var 'x') (Var 'y')) (Var 'z')
-
-aexp2 :: AExp
-aexp2 = AOp ASub (AOp AAdd (Var 'x') (Var 'y')) (Var 'y')
-
-bexp1 :: BExp
-bexp1 = BEq aexp1 aexp2
-
-exp1 :: Exp
-exp1 = AStmt aexp1
-
-exp2 :: Exp
-exp2 = AStmt aexp2
-
-exp3 :: Exp
-exp3 = BStmt bexp1
-
-test1 :: CFG
-test1 = Block (AssignBlock ((Var 'a')) (aexp1)) 1 []
-
-test2 :: CFG
-test2 = Block (CondBlock bexp1) 2 []
-
-
----------------------
-------- TESTS -------
----------------------
+-- printTuple :: (Show a, Show b) => String -> (a, b) -> String
+-- printTuple context (a, b) = context ++ "[" ++ show a ++ "] = {" ++ show b ++ "}"
 
 mainLib :: IO()
 mainLib = do
-    print "Exec."
-    -- print $ vars exp3
-    -- print exp3
-    -- print $ vars exp3
-    -- print test1
-    -- print $ (Set.toList . kill) test1
-    -- print $ (Set.toList . kill) test2
-    -- print $ (Set.toList . gen) test1
-    -- print $ (Set.toList . gen) test2
-    -- print $ bottom [1,2,6,3,5]
+    let tuple = f
+    let lvouts = map (\(x, y) -> (x, Set.toList y)) $ (Map.toList . fst) tuple
+    let lvins = map (\(x, y) -> (x, Set.toList y)) $ (Map.toList . snd) tuple
+    print lvouts
+    print lvins
+    -- mapM_ putStrLn $ map (printTuple "LVOut") (Map.toList lvouts)
+    -- mapM_ putStrLn $ map (printTuple "LVIns") (Map.toList lvins)
 
 instance Show Exp where
     show = strfy
