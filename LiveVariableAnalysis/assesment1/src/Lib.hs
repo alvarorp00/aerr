@@ -74,8 +74,18 @@ vars e = vars' e
 data CFG = Block {
     block :: CFGBlock,
     label :: Int,
-    succs :: [CFG]
+    succs :: [Int]  -- List of labels of CFGS
 } deriving (Show)
+
+cfgs :: Map.Map Int CFG
+cfgs = buildCFGs
+
+getCFG :: Int -> CFG
+getCFG l = cfgs Map.! l
+
+getCFGS :: [Int] -> [CFG]
+getCFGS [] = []
+getCFGS (x:xs) = ([getCFG x]) ++ (getCFGS xs)
 
 data CFGBlock = AssignBlock AExp AExp  -- need to check later that left part of assignment is Var type
     | CondBlock BExp
@@ -117,12 +127,11 @@ getBlock (Block b _ _) = b
 getLabel :: CFG -> Int
 getLabel (Block _ l _) = l
 
-getChildren :: CFG -> [CFG]
-getChildren (Block _ _ c) = c
-
 getChildrenLabels :: CFG -> [Int]
-getChildrenLabels c =
-    map getLabel (getChildren c)
+getChildrenLabels (Block _ _ c) = c
+
+getChildren :: CFG -> [CFG]
+getChildren = (getCFGS . getChildrenLabels)
 
 uniqueBlocks :: CFG -> Map.Map Int CFG
 uniqueBlocks cblock =
@@ -153,7 +162,7 @@ f input = f' emptyVals emptyVals
         labels = map (\x -> getLabel x) (Map.elems tblocks)
         tblocks = uniqueBlocks input
         f' :: LVMap -> LVMap -> (LVMap, LVMap)
-        f' lvouts lvins = 
+        f' lvouts lvins
             | fixed_point = (lvouts', lvins')
             | otherwise   = f' lvouts' lvins'
             where
@@ -199,7 +208,18 @@ strfy e = "(" ++ strfy' e ++ ")"
 
 
 ---------------------
+---------------------
 ------- DEBUG -------
+---------------------
+---------------------
+
+---------------------
+---- BUILD CFGs -----
+---------------------
+
+buildCFGs :: Map.Map Int CFG
+buildCFGs = Map.empty -- TODO
+
 ---------------------
 ---- EXPRESSIONS ----
 ---------------------
