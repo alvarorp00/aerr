@@ -1,6 +1,6 @@
-{-# LANGUAGE ScopedTypeVariables #-}
-
-module Lib where
+module Lib(
+    mainLib
+) where
 
 import Data.Char()
 import Data.Int()
@@ -16,25 +16,26 @@ import qualified Data.Map.Strict as Map
 -- 1. Implement abstract data types
 
 -- Expressions
-data Exp = AStmt AExp
-    | BStmt BExp
+data Exp = AStmt AExp  -- Arithmetic expression
+    | BStmt BExp  -- Boolean expression
 
--- Arithmetic binary operators
-data ABinOp = AAdd
-    | ASub
-    | AMul
+-- Arithmetic binary operators  --> Just for notation as they don't have a real significance, actually they can be considered the same
+data ABinOp = AAdd  -- (+) operator
+    | ASub  -- (-) operator
+    | AMul  -- (*) operator
     deriving (Show)
 
 -- Arithmetic expressions
-data AExp = Const Int
-    | Var Char
-    | AOp ABinOp AExp AExp
+data AExp = Const Int  -- Constant integer value
+    | Var Char  -- Vars are constructed from single chars --> Var 'x' OK, Var "x1" NOT OK (could be easily changed but I decided it in this way)
+    | AOp ABinOp AExp AExp  -- Arithmetic operation --> Posterior LV analysis will check only Var Char acts as left operator of this expression type
     deriving (Show)
 
 -- Boolean Operators & expressions
-data BExp = BLEq AExp AExp
-    | BEq AExp AExp
-    | BAnd BExp BExp
+data BExp = BLEq AExp AExp  -- Less or equal than
+    | BGr AExp AExp  -- Greater than  --> is the same as negating the possible result of a BLEq expression type so I have included just to simplify nodes definition (see below)
+    | BEq AExp AExp  -- Equal
+    | BAnd BExp BExp  -- Boolean and
     deriving (Show)
 
 ---------------------
@@ -47,12 +48,6 @@ type VarSet = Set.Set Char
 -- 2. Implement a function that given an arithmetic/boolean exp.
 --    returns the set of variables ocurring in it.
 
--- rmdups --> remove duplicates from a list.
---            Unused since Set is being used.
--- rmdups :: Eq a => [a] -> [a]
--- rmdups []     = []
--- rmdups (x:xs) = x : filter (/= x) (rmdups xs)
-
 vars :: Exp -> VarSet
 vars e = vars' e
     where vars' :: Exp -> VarSet
@@ -64,6 +59,7 @@ vars e = vars' e
           vars' (BStmt b) = vars'' b
               where vars'' :: BExp -> VarSet
                     vars'' (BLEq a1 a2) = Set.union (vars' (AStmt a1)) (vars' (AStmt a2))
+                    vars'' (BGr a1 a2) = Set.union (vars' (AStmt a1)) (vars' (AStmt a2))
                     vars'' (BEq a1 a2) = Set.union (vars' (AStmt a1)) (vars' (AStmt a2))
                     vars'' (BAnd b1 b2) = Set.union (vars'' b1) (vars'' b2)
 
@@ -71,21 +67,13 @@ vars e = vars' e
 ------- CFG's -------
 ---------------------
 
+-- 3. Implement CFG Data Structure
+
 data CFG = Block {
     block :: CFGBlock,
     label :: Int,
     succs :: [Int]  -- List of labels of CFGS
 } deriving (Show)
-
-cfgs :: Map.Map Int CFG
-cfgs = buildCFGs
-
-getCFG :: Int -> CFG
-getCFG l = cfgs Map.! l
-
-getCFGS :: [Int] -> [CFG]
-getCFGS [] = []
-getCFGS (x:xs) = ([getCFG x]) ++ (getCFGS xs)
 
 data CFGBlock = AssignBlock AExp AExp  -- need to check later that left part of assignment is Var type
     | CondBlock BExp
@@ -94,6 +82,8 @@ data CFGBlock = AssignBlock AExp AExp  -- need to check later that left part of 
 ---------------------
 ---- TRANSFER. F ----
 ---------------------
+
+-- 4. Implement kill & gen functions together with a transfer function
 
 -- Return the set of variables _killed_ in block n
 kill :: CFG -> VarSet
@@ -120,6 +110,11 @@ transfer b lvout =
 ---------------------
 -------- LVA --------
 ---------------------
+--- LIVE VARIABLE ---
+------ ANALYSIS -----
+---------------------
+
+type LVMap = Map.Map Int VarSet
 
 getBlock :: CFG -> CFGBlock
 getBlock (Block b _ _) = b
@@ -130,17 +125,8 @@ getLabel (Block _ l _) = l
 getChildrenLabels :: CFG -> [Int]
 getChildrenLabels (Block _ _ c) = c
 
-getChildren :: CFG -> [CFG]
-getChildren = (getCFGS . getChildrenLabels)
-
--- uniqueBlocks :: CFG -> Map.Map Int CFG
--- uniqueBlocks cblock =
---     Map.union (Map.insert (getLabel cblock) cblock Map.empty) ((uniqueBlocks' . getChildren) cblock)
---         where uniqueBlocks' :: [CFG] -> Map.Map Int CFG
---               uniqueBlocks' [] = Map.empty
---               uniqueBlocks' (s:ss) = Map.union (uniqueBlocks s) (uniqueBlocks' ss)
-
-type LVMap = Map.Map Int VarSet
+-- getChildren :: CFG -> [CFG]
+-- getChildren = (getCFGS . getChildrenLabels)
 
 bottom :: [Int] -> LVMap
 bottom [] = Map.empty
@@ -155,12 +141,12 @@ bottom (x:xs) = Map.union (bottom xs) (Map.insert x Set.empty Map.empty)
 -- Returns:
 --      ~ (LVMap, LVMap) : (LVOut_n, LVIn_n) -> Tuple containing LVOut & 
 --                                              LVIn of each block
-f :: (LVMap, LVMap)
-f = f' emptyVals emptyVals
+f :: [CFG] -> (LVMap, LVMap)
+f nodes = f' emptyVals emptyVals
     where
         emptyVals = bottom labels
         labels = map (\x -> getLabel x) (Map.elems tblocks)
-        tblocks = buildCFGs
+        tblocks = buildCFGs nodes
         f' :: LVMap -> LVMap -> (LVMap, LVMap)
         f' lvouts lvins
             | fixed_point = (lvouts', lvins')
@@ -186,10 +172,15 @@ inverseTransfer tblocks lvins k _ = varSet
 ---------------------
 ------- DEBUG -------
 ---------------------
+
+-- Deleted (consisted of random expressions and prints) --
+
+---------------------
 ----- STRINGIFY -----
 ---- EXPRESSIONS ----
 ---------------------
 
+-- strfy is not used actually, was useful for debugging in earlier code
 strfy :: Exp -> String
 strfy e = "(" ++ strfy' e ++ ")"
     where strfy' :: Exp -> String
@@ -203,104 +194,172 @@ strfy e = "(" ++ strfy' e ++ ")"
           strfy' (BStmt b) = "" ++ strfy'' b ++ ""
             where strfy'' :: BExp -> String
                   strfy'' (BLEq a1 a2) = " (" ++ ( strfy' (AStmt a1) ) ++ ") <= (" ++ ( strfy' (AStmt a2) ) ++ ") "
+                  strfy'' (BGr a1 a2) = " (" ++ ( strfy' (AStmt a1) ) ++ ") > (" ++ ( strfy' (AStmt a2) ) ++ ") "
                   strfy'' (BEq a1 a2) = " (" ++ ( strfy' (AStmt a1) ) ++ ") = (" ++ ( strfy' (AStmt a2) ) ++ ") "
                   strfy'' (BAnd b1 b2) = " (" ++ ( strfy'' b1 ) ++ ") ^ (" ++ ( strfy'' b2 ) ++ ") "
-
-
----------------------
----------------------
-------- DEBUG -------
----------------------
----------------------
-
----------------------
-------- TEST --------
----- EXPRESSIONS ----
----------------------
-
--- aexp1 :: AExp
--- aexp1 = AOp AMul (AOp AAdd (Var 'x') (Var 'y')) (Var 'z')
-
--- aexp2 :: AExp
--- aexp2 = AOp ASub (AOp AAdd (Var 'x') (Var 'y')) (Var 'y')
-
--- bexp1 :: BExp
--- bexp1 = BEq aexp1 aexp2
-
--- exp1 :: Exp
--- exp1 = AStmt aexp1
-
--- exp2 :: Exp
--- exp2 = AStmt aexp2
-
--- exp3 :: Exp
--- exp3 = BStmt bexp1
-
--- test1 :: CFG
--- test1 = Block (AssignBlock ((Var 'a')) (aexp1)) 1 []
-
--- test2 :: CFG
--- test2 = Block (CondBlock bexp1) 2 []
 
 ---------------------
 ----- HARDCODED -----
 ------- BLOCKS ------
 ---------------------
 
--- EXPRESIONS --
+-----------------------
+------- EXAMPLES ------
+-----------------------
 
-exp1 :: CFGBlock
-exp1 = AssignBlock (Var 'x') (Const 1) -- x := 1
+-----------------------
+---- SLIDES EXAMPLE ---
+-----------------------
+-------- START --------
+-----------------------
 
-exp2 :: CFGBlock
-exp2 = CondBlock (BLEq (Const 0) (Var 'y'))  -- y > 0
+-- [1] @ x:= 1  --> [2]
+-- [2] @ y > 0   --> True : [3] | False : [4]
+-- [3] @ x := x - 1 --> [2]
+-- [4] @ x := 2 --> [END]
 
-exp3 :: CFGBlock
-exp3 = AssignBlock (Var 'x') (AOp ASub (Var 'x') (Const 1)) -- x := x - 1
+-- EXPRESSIONS --
 
-exp4 :: CFGBlock
-exp4 = AssignBlock (Var 'x') (Const 2)
+exp11 :: CFGBlock
+exp11 = AssignBlock (Var 'x') (Const 1) -- x := 1
+
+exp12 :: CFGBlock
+exp12 = CondBlock (BGr (Var 'y') (Const 0))  -- y > 0
+
+exp13 :: CFGBlock
+exp13 = AssignBlock (Var 'x') (AOp ASub (Var 'x') (Const 1)) -- x := x - 1
+
+exp14 :: CFGBlock
+exp14 = AssignBlock (Var 'x') (Const 2)  -- x := 2
 
 -- NODES --
 
-node1 :: CFG
-node1 = Block {block=exp1, label=1, succs=[2]}
+node11 :: CFG
+node11 = Block {block=exp11, label=1, succs=[2]}
 
-node2 :: CFG
-node2 = Block {block=exp2, label=2, succs=[3,4]}
+node12 :: CFG
+node12 = Block {block=exp12, label=2, succs=[3,4]}
 
-node3 :: CFG
-node3 = Block {block=exp3, label=3, succs=[2]}
+node13 :: CFG
+node13 = Block {block=exp13, label=3, succs=[2]}
 
-node4 :: CFG
-node4 = Block {block=exp4, label=4, succs=[]}
+node14 :: CFG
+node14 = Block {block=exp14, label=4, succs=[]}
 
-nodes :: [CFG]
-nodes = [node1, node2, node3, node4]
+nodes1 :: [CFG]
+nodes1 = [node11, node12, node13, node14]
+
+-----------------------
+---- SLIDES EXAMPLE ---
+-----------------------
+--------- ENDS --------
+-----------------------
+
+-----------------------
+
+-----------------------
+--- HANDOUT EXAMPLE ---
+-----------------------
+-------- START --------
+-----------------------
+
+-- [1] @ x:= 10  --> [2]
+-- [2] @ x > 0   --> True : [3] | False : [4]
+-- [3] @ x := x - 1 --> [4]
+-- [4] @ y := y + x --> [2]
+-- [5] @ z := 2 --> [6]
+-- [6] @ z := y * z --> [END]
+
+-- EXPRESSIONS --
+
+exp21 :: CFGBlock
+exp21 = AssignBlock (Var 'x') (Const 10) -- x := 10
+
+exp22 :: CFGBlock
+exp22 = CondBlock (BGr (Var 'x') (Const 0)) -- x > 0
+
+exp23 :: CFGBlock
+exp23 = AssignBlock (Var 'x') (AOp ASub (Var 'x') (Const 1)) -- x := x - 1
+
+exp24 :: CFGBlock
+exp24 = AssignBlock (Var 'y') (AOp AAdd (Var 'y') (Var 'x')) -- y := y - x
+
+exp25 :: CFGBlock
+exp25 = AssignBlock (Var 'z') (Const 2) -- z := 2
+
+exp26 :: CFGBlock
+exp26 = AssignBlock (Var 'z') (AOp AMul (Var 'y') (Var 'z'))
+
+-- NODES --
+
+node21 :: CFG
+node21 = Block {block=exp21, label=1, succs=[2]}
+
+node22 :: CFG
+node22 = Block {block=exp22, label=2, succs=[3, 5]}
+
+node23 :: CFG
+node23 = Block {block=exp23, label=3, succs=[4]}
+
+node24 :: CFG
+node24 = Block {block=exp24, label=4, succs=[2]}
+
+node25 :: CFG
+node25 = Block {block=exp25, label=5, succs=[6]}
+
+node26 :: CFG
+node26 = Block {block=exp26, label=6, succs=[]}
+
+nodes2 :: [CFG]
+nodes2 = [node21, node22, node23, node24, node25, node26]
+
+-----------------------
+--- HANDOUT EXAMPLE ---
+-----------------------
+--------- ENDS --------
+-----------------------
 
 ---------------------
 ---- BUILD CFGs -----
 ---------------------
 
-buildCFGs :: Map.Map Int CFG
-buildCFGs = Map.fromList $ map (\x -> (getLabel x, x)) nodes
+-- This function builds Map{key, value} e.g. Map {label, node} from above nodes
+-- by mapping each cfg label to itself as a key value tuple inside a Map.Map structure
+buildCFGs :: [CFG] -> Map.Map Int CFG
+buildCFGs nodes = Map.fromList $ map (\x -> (getLabel x, x)) nodes
 
+---------------------
 ---------------------
 -------- MAIN -------
 ---------------------
+---------------------
 
--- printTuple :: (Show a, Show b) => String -> (a, b) -> String
--- printTuple context (a, b) = context ++ "[" ++ show a ++ "] = {" ++ show b ++ "}"
+formatLV :: [(Int, VarSet)] -> String
+formatLV [] = ""
+formatLV (x:xs) = "\n\tBlock " ++ show l ++ ": {"
+    ++ ((formatVars . Set.toList) varSet) ++ "}" ++ formatLV xs
+    where l = fst x
+          varSet = snd x
+          formatVars :: [Char] -> String
+          formatVars [] = ""
+          formatVars (s:[]) = " " ++ show s ++ " "
+          formatVars (s:ss) = " " ++ show s ++ (formatVars ss)
+
+-- CHOOSE PROGRAM TO ANALYZE --
 
 mainLib :: IO()
 mainLib = do
-    let tuple = f
-    let lvouts = map (\(x, y) -> (x, Set.toList y)) $ (Map.toList . fst) tuple
-    let lvins = map (\(x, y) -> (x, Set.toList y)) $ (Map.toList . snd) tuple
-    print lvouts
-    print lvins
-    -- mapM_ putStrLn $ map (printTuple "LVOut") (Map.toList lvouts)
-    -- mapM_ putStrLn $ map (printTuple "LVIns") (Map.toList lvins)
+    let result = f nodes2 -- change `nodesX` to desired nodes {nodes1, nodes2} to check available hardcoded programs
+    let frmtLVOut = formatLV $ (Map.toList . fst) result
+    let frmtLVIn = formatLV $ (Map.toList . snd) result
+    putStrLn $ "LVOut (Block[i]: {LVOutVars}) : " ++ frmtLVOut
+    putStrLn $ "LVInt (Block[i]: {LVInVars}) : " ++  frmtLVIn
+
+-------------------
+-------------------
+---- INSTANCES ----
+-------------------
+-------------------
 
 instance Show Exp where
     show = strfy
