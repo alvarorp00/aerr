@@ -360,7 +360,7 @@ mainLibFn = do
     let frmtLVOut = formatLV $ (Map.toList . fst) result
     let frmtLVIn = formatLV $ (Map.toList . snd) result
     putStrLn $ "LVOut (Block[i]: {LVOutVars}) : " ++ frmtLVOut
-    putStrLn $ "LVInt (Block[i]: {LVInVars}) : " ++  frmtLVIn
+    putStrLn $ "LVIn (Block[i]: {LVInVars}) : " ++  frmtLVIn
 
 -------------------
 -------------------
