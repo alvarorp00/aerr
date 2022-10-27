@@ -1,5 +1,5 @@
 module Lib(
-    mainLib
+    mainLibFn
 ) where
 
 import Data.Char()
@@ -43,6 +43,8 @@ data BExp = BLEq AExp AExp  -- Less or equal than
 ---------------------
 
 -- Define VarSet as a set of VarChar's
+--      The power of using a Set type is as no repetition is allowed we ensure
+--      no duplicate variables will appear
 type VarSet = Set.Set Char
 
 -- 2. Implement a function that given an arithmetic/boolean exp.
@@ -69,15 +71,15 @@ vars e = vars' e
 
 -- 3. Implement CFG Data Structure
 
+data CFGBlock = AssignBlock AExp AExp  -- need to check later that left part of assignment is Var type
+    | CondBlock BExp
+    deriving(Show)
+
 data CFG = Block {
     block :: CFGBlock,
     label :: Int,
     succs :: [Int]  -- List of labels of CFGS
 } deriving (Show)
-
-data CFGBlock = AssignBlock AExp AExp  -- need to check later that left part of assignment is Var type
-    | CondBlock BExp
-    deriving(Show)
 
 ---------------------
 ---- TRANSFER. F ----
@@ -114,20 +116,23 @@ transfer b lvout =
 ------ ANALYSIS -----
 ---------------------
 
+-- Alias for (key,value) pair --> key as block label, value as set of vars (either LVOuts or LVIns)
 type LVMap = Map.Map Int VarSet
 
+-- Returns the block contained in a node of the graph
 getBlock :: CFG -> CFGBlock
 getBlock (Block b _ _) = b
 
+-- Returns the label contained in a node of the graph
 getLabel :: CFG -> Int
 getLabel (Block _ l _) = l
 
+-- Returns the labels of the successors of the corresponding node of the graph
 getChildrenLabels :: CFG -> [Int]
 getChildrenLabels (Block _ _ c) = c
 
--- getChildren :: CFG -> [CFG]
--- getChildren = (getCFGS . getChildrenLabels)
-
+-- Returns a map of type (label_idx, EmptySet) --> ⊥ --> First input of F function --> F(⊥)
+--      @ Associates each label (as index) to an empty set (at first no values are contained in LVOut & LVIn sets)
 bottom :: [Int] -> LVMap
 bottom [] = Map.empty
 bottom (x:xs) = Map.union (bottom xs) (Map.insert x Set.empty Map.empty)
@@ -137,37 +142,39 @@ bottom (x:xs) = Map.union (bottom xs) (Map.insert x Set.empty Map.empty)
 -- F: L -> L (monotonic)
 --
 -- Args:
---      ~ CFG : block -> First block of the program in the exec. path.
+--      ~ [CFG] : set of blocks -> Blocks representing the graph flow of the program (each block contains labels of its childs a.k.a. successors)
 -- Returns:
 --      ~ (LVMap, LVMap) : (LVOut_n, LVIn_n) -> Tuple containing LVOut & 
 --                                              LVIn of each block
 f :: [CFG] -> (LVMap, LVMap)
-f nodes = f' emptyVals emptyVals
+f nodes = f' emptyVals emptyVals  -- start with F(⊥) <-- actually two parameters as LVOuts & LVIns are calculated separately
     where
-        emptyVals = bottom labels
-        labels = map (\x -> getLabel x) (Map.elems tblocks)
-        tblocks = buildCFGs nodes
-        f' :: LVMap -> LVMap -> (LVMap, LVMap)
+        emptyVals = bottom labels  -- ⊥
+        labels = map (\x -> getLabel x) (Map.elems tblocks) -- get label of each node
+        tblocks = buildCFGs nodes -- build a Map where the key is the label of the node and the value the node itself
+        f' :: LVMap -> LVMap -> (LVMap, LVMap)  -- From (LVOut_n, LVIn_n) calculate (LVOut_{n+1}, LVIn_{n+1})
         f' lvouts lvins
-            | fixed_point = (lvouts', lvins')
-            | otherwise   = f' lvouts' lvins'
+            | fixed_point = (lvouts', lvins')  -- If it's the same as in the previous iteration a fixed point has been reached
+            | otherwise   = f' lvouts' lvins'  -- Recursive call to F^{n+1}(⊥) in the n-th iteration
             where
                 fixed_point = (lvouts' == lvouts) && (lvins' == lvins)
-                lvouts' = Map.mapWithKey (inverseTransfer tblocks lvins) lvouts
-                lvins' = Map.mapWithKey (transferMap tblocks lvouts) lvins
+                lvouts' = Map.mapWithKey (inverseTransfer tblocks lvins) lvouts  -- next LVOuts --> map the partialized function (with nodes & current lvins) to each pair (key,value) of the current lvouts ((label, VarSet) style)
+                lvins' = Map.mapWithKey (transferMap tblocks lvouts) lvins -- next LVIns --> map the partialized function (with nodes & current lvouts) to each pair (key,value) of the current lvins ((label, VarSet) style)
 
+-- 
 transferMap :: Map.Map Int CFG -> LVMap -> Int -> VarSet -> VarSet
 transferMap tblocks lvouts k _ = transfer cfg lvout
     where
         cfg = tblocks Map.! k
         lvout = lvouts Map.! k
 
+-- With a given set of LVIns calculate the correspondant LVOut{i} for each LVIn{i}
 inverseTransfer :: Map.Map Int CFG -> LVMap -> Int -> VarSet -> VarSet
 inverseTransfer tblocks lvins k _ = varSet
     where
-        varSet = (Set.unions . Map.elems) filteredLvIns
-        filteredLvIns = Map.filterWithKey (\k' _ -> Set.member k' cLabels) lvins
-        cLabels = (Set.fromList . getChildrenLabels) (tblocks Map.! k)
+        varSet = (Set.unions . Map.elems) filteredLvIns  -- Adds all to a single set of VarChar
+        filteredLvIns = Map.filterWithKey (\k' _ -> Set.member k' cLabels) lvins  -- 
+        cLabels = (Set.fromList . getChildrenLabels) (tblocks Map.! k)  -- labels of the successors of the given block
 
 ---------------------
 ------- DEBUG -------
@@ -264,7 +271,7 @@ nodes1 = [node11, node12, node13, node14]
 -----------------------
 
 -- [1] @ x:= 10  --> [2]
--- [2] @ x > 0   --> True : [3] | False : [4]
+-- [2] @ x > 0   --> True : [3] | False : [5]
 -- [3] @ x := x - 1 --> [4]
 -- [4] @ y := y + x --> [2]
 -- [5] @ z := 2 --> [6]
@@ -347,9 +354,9 @@ formatLV (x:xs) = "\n\tBlock " ++ show l ++ ": {"
 
 -- CHOOSE PROGRAM TO ANALYZE --
 
-mainLib :: IO()
-mainLib = do
-    let result = f nodes2 -- change `nodesX` to desired nodes {nodes1, nodes2} to check available hardcoded programs
+mainLibFn :: IO()
+mainLibFn = do
+    let result = f nodes1 -- change `nodesX` to desired nodes {nodes1, nodes2} to check available hardcoded programs
     let frmtLVOut = formatLV $ (Map.toList . fst) result
     let frmtLVIn = formatLV $ (Map.toList . snd) result
     putStrLn $ "LVOut (Block[i]: {LVOutVars}) : " ++ frmtLVOut

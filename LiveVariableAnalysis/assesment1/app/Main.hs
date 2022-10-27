@@ -1,8 +1,7 @@
 module Main where
 
-import Lib
+import Lib (mainLibFn)
 
 main :: IO ()
 main = do
-    -- putStrLn "Hello, Haskell!"
-    mainLib
+    mainLibFn
