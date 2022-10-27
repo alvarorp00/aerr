@@ -1,4 +1,4 @@
-# Assesment 3 - Static Analysis and Constraint Solving | UCM 22-23
+# Assignment 3 - Static Analysis and Constraint Solving | UCM 22-23
 
 Tree view of the project:
 
@@ -6,7 +6,7 @@ Tree view of the project:
 .
 |-- app
 |   |-- Main.hs
-|-- assesment1.cabal
+|-- assignment3.cabal
 |-- CHANGELOG.md
 |-- LICENSE
 |-- README.md
@@ -16,7 +16,7 @@ Tree view of the project:
 
 - _Main.hs_ contains the `main` function of the program. This `main` function calls `mainLibFn` function of _Lib.hs_.
 - _Lib.hs_ contains the implemented **Live Variable Analysis**. Further details at the end of this file.
-- _assesment1.cabal_ contains the needed configuration for building and running the project.
+- _assignment3.cabal_ contains the needed configuration for building and running the project.
 - Other files such as LICENSE and CHANGELOG were generated automathically by doing `cabal init` and thus can be ignored.
 
 ## Building & Compiling
