@@ -356,7 +356,7 @@ formatLV (x:xs) = "\n\tBlock " ++ show l ++ ": {"
 
 mainLibFn :: IO()
 mainLibFn = do
-    let result = f nodes1 -- change `nodesX` to desired nodes {nodes1, nodes2} to check available hardcoded programs
+    let result = f nodes2 -- change `nodesX` to desired nodes {nodes1, nodes2} to check available hardcoded programs
     let frmtLVOut = formatLV $ (Map.toList . fst) result
     let frmtLVIn = formatLV $ (Map.toList . snd) result
     putStrLn $ "LVOut (Block[i]: {LVOutVars}) : " ++ frmtLVOut
